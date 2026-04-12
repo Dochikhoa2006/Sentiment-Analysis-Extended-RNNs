@@ -152,4 +152,3 @@ joblib.dump (dataset, 'setup_dataset.pkl')
 
 
 
-# https://huggingface.co/datasets/LocalDoc/application_reviews
