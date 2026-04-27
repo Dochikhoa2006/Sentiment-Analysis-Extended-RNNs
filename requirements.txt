@@ -1,0 +1,11 @@
+tensorflow
+scikit-learn
+scipy
+matplotlib
+seaborn
+numpy
+joblib
+pyspark
+pandas
+squarify
+gensim
