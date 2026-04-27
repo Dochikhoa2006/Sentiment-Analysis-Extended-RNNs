@@ -1,4 +1,3 @@
-
 from pyspark.sql import SparkSession
 from pyspark.sql import functions 
 import matplotlib.pyplot as plt
@@ -10,7 +9,7 @@ import joblib
 import re
 
 spark = SparkSession.builder.master ("local[*]").appName ("ParquetProcessing").getOrCreate ()
-dataset = spark.read.parquet ('/Users/chikhoado/Desktop/PROJECTS/Sentiment Analyzer/reviews.parquet')
+dataset = spark.read.parquet ('reviews.parquet')
 
 def DataFrame ():
 
