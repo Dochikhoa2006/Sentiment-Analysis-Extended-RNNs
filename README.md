@@ -119,37 +119,20 @@ The project compares two high-capacity sequence models to evaluate their effecti
 
 ## How to Run
 
-1. **Clone the Repository**:
-   ```bash
-   cd "Your Directory"
-   git clone [https://github.com/Dochikhoa2006/Sentiment-Analyzer.git](https://github.com/Dochikhoa2006/Sentiment-Analyzer.git)
-
-2.  **Install Dependencies**:
-    Make sure you have Python and the necessary libraries installed:
+1.  **Clone the Repository**:
     ```bash
-    pip install numpy pandas regex unicodedata gensim tensorflow gensim pyspark matplotlib seaborn scipy squarify joblib scikit-learn
+    cd "Your Directory"
+    git clone https://github.com/Dochikhoa2006/Sentiment-Analysis-Extended-RNNs.git
     ```
 
-3.  **Data Preparation**:
-    Place the reviews.parquet file in the project root.
-    ```bash
-    python EDA_First_Preprocess.py
-    python Second_Preprocess.py
-    ```
-
-4.  **Training and Evaluation**:
-    Place the processed_reviews.txt and .pkl file in the current project.
-    ```bash
-    python Final_Training.py
-    ```
-
-4.  **Inference**:
-Place the processed_reviews.txt and .pkl file in the current project.
-    ```bash
-    python Inference.py
-    ```
-
-> **Note:** Accessing to directory of scripts before running
+2.  **Docker**:
+    * To build docker image:
+        ```bash
+        docker build -t amazon-appstore-reviews-sentiment-multi-classification .
+    * To run docker container:
+        ```bash
+        docker run -it amazon-appstore-reviews-sentiment-multi-classification
+        ```
 
 ## License
 
