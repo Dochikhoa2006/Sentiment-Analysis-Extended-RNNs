@@ -138,17 +138,6 @@ joblib.dump (dataset, 'setup_dataset.pkl')
 
 
 
-# cd '/Users/chikhoado/Desktop/PROJECTS/Sentiment Analyzer'
-# /opt/homebrew/bin/python3.12 -m venv .venv
-# source .venv/bin/activate
-# brew install openjdk@17 apache-spark
-# sudo ln -sfn /opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk /Library/Java/JavaVirtualMachines/openjdk-17.jdk
-# pip install regex pandas numpy pyspark seaborn matplotlib squarify joblib
-# python '/Users/chikhoado/Desktop/PROJECTS/Sentiment Analyzer/EDA_First_Preprocess.py'
-
-
-
-
 
 
 

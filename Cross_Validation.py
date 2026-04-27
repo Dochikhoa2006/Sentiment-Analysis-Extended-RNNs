@@ -154,16 +154,3 @@ if __name__ == '__main__':
     margin = [margin_BI_LTSM, margin_BI_GRU]
 
     plotting ()
-
-
-
-
-
-# cd '/Users/chikhoado/Desktop/PROJECTS/Sentiment Analyzer'
-# /opt/homebrew/bin/python3.12 -m venv .venv
-# source .venv/bin/activate
-# pip install --upgrade pip
-# brew install openjdk@17 apache-spark
-# sudo ln -sfn /opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk /Library/Java/JavaVirtualMachines/openjdk-17.jdk
-# pip install numpy tensorflow scikit-learn scipy matplotlib joblib
-# python '/Users/chikhoado/Desktop/PROJECTS/Sentiment Analyzer/Cross_Validation.py'

@@ -75,17 +75,3 @@ if __name__ == '__main__':
     token_vector_model.build_vocabulary (dataset['review'])
 
     joblib.dump (token_vector_model, 'tokenization_vectorization_model.pkl')
-
-
-
-
-
-
-# cd '/Users/chikhoado/Desktop/PROJECTS/Sentiment Analyzer'
-# /opt/homebrew/bin/python3.12 -m venv .venv
-# source .venv/bin/activate
-# pip install --upgrade pip
-# brew install openjdk@17 apache-spark
-# sudo ln -sfn /opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk /Library/Java/JavaVirtualMachines/openjdk-17.jdk
-# pip install numpy gensim regex joblib
-# python '/Users/chikhoado/Desktop/PROJECTS/Sentiment Analyzer/Second-Preprocess.py'
