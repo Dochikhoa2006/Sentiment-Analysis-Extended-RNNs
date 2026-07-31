@@ -1,173 +1,265 @@
-# App Store Review Sentiment Classifier: Bidirectional RNNs with Subword Embeddings
+<div align="center">
 
-## Overview
-This project implements a multi-class sentiment analysis pipeline using Bidirectional LSTMs and GRUs to classify Amazon Appstore reviews into five sentiment levels. By integrating FastText embeddings, the system effectively captures subword-level information to handle typos and slang common in user feedback. The workflow encompasses the full ML lifecycle—from scalable PySpark preprocessing to a comparative evaluation of recurrent architectures via K-fold cross-validation—resulting in a robust tool for real-time sentiment inference.
+# App Review Sentiment Intelligence
 
-## Dataset Information 
+### Five-class sentiment classification with FastText and bidirectional recurrent networks
 
-The dataset consists of user reviews and star ratings harvested from the Amazon Appstore. Initial processing is performed using **PySpark** to handle the high volume of text data and associated metadata across thousands of unique applications.
+[![CI](https://github.com/Dochikhoa2006/Sentiment-Analysis-Extended-RNNs/actions/workflows/ci.yml/badge.svg)](https://github.com/Dochikhoa2006/Sentiment-Analysis-Extended-RNNs/actions/workflows/ci.yml)
+[![Python 3.11–3.12](https://img.shields.io/badge/python-3.11–3.12-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![TensorFlow](https://img.shields.io/badge/TensorFlow-BiGRU%20%7C%20BiLSTM-FF6F00?logo=tensorflow&logoColor=white)](https://www.tensorflow.org/)
+[![Code style: Ruff](https://img.shields.io/badge/code%20style-Ruff-D7FF64?logo=ruff&logoColor=black)](https://docs.astral.sh/ruff/)
+[![License: CC BY 4.0](https://img.shields.io/badge/code%20license-CC%20BY%204.0-lightgrey.svg)](LICENSE)
 
-* **Primary File:** `reviews.parquet` (Initial Ingestion)
-* **Processed Outputs:** `setup_dataset.pkl`, `processed_reviews.txt`
-* **Classes:** 5 Sentiment Categories (mapped from 1-5 star ratings)
-* **Sequence Length:** 150 tokens per input (padded/truncated)
-* **Embedding Dimension:** 130 dimensions for complex relationships
+[Quick start](#quick-start) · [Architecture](#system-architecture) · [Results](#model-evaluation) · [Model card](docs/MODEL_CARD.md)
 
-### Dataset Variables
+</div>
 
-| Variable | Description |
-| :--- | :--- |
-| **review** | The raw text feedback provided by the user. Normalized via NFKD and tokenized using regex patterns. |
-| **star** | The original numerical rating (1-5). In the preprocessing stage, this is shifted to a 0-4 range for model compatibility. |
-| **date** | The timestamp of the review, utilized for temporal density and trend analysis. |
-| **package_name** | The unique identifier for the application being reviewed, used to analyze application density. |
+## Executive summary
 
-### Class Mapping & EDA
-The system interprets the star ratings as a proxy for sentiment intensity:
-* **1 Star (Class 0)**: Strongly Dissatisfied
-* **2 Stars (Class 1)**: Dissatisfied
-* **3 Stars (Class 2)**: Neutral Sentiment
-* **4 Stars (Class 3)**: Satisfied
-* **5 Stars (Class 4)**: Strongly Satisfied
+This project builds an end-to-end NLP pipeline that maps a mobile application review to one of
+five sentiment levels, represented by its 1–5 star rating. It combines Unicode-aware text
+normalization, trainable FastText subword embeddings, and stacked bidirectional GRU/LSTM models.
 
-* **Sentiment Distribution Insights**:
-    ![Scorings Distribution](./Scorings_Distribution.png)
-    * The dataset shows a significant **class imbalance**, with a high density of 5-star ("Strongly Satisfied") reviews. This distribution explains why the models achieve high overall accuracy but may require further tuning—such as class weighting—to improve precision for "Neutral" or "Dissatisfied" categories.
+The repository demonstrates more than model fitting: it includes distributed preprocessing,
+exploratory analysis, statistically grounded cross-validation, memory-bounded training, artifact
+management, a typed inference API, a production-style CLI, Docker packaging, and automated tests.
 
-* **Market Trends**:
-    ![Temporal Density](./Scorings_Density_Every_6_Months.png)
-    * Analyzing the scoring density over 6-month intervals reveals fluctuations in user engagement and sentiment trends, providing valuable context for how the app's reception has evolved over time.
+| Project dimension | Implementation |
+|---|---|
+| Dataset | 197,595 application reviews across 622 packages |
+| Task | Five-class ordinal sentiment classification |
+| Text representation | 130-dimensional FastText subword vectors |
+| Input | Up to 150 tokens per review, masked after zero-padding |
+| Models | Stacked bidirectional LSTM and GRU networks |
+| Evaluation | Stratified K-fold accuracy, macro-F1, 95% CI, confusion matrix |
+| Serving interface | Python API, CLI, and Docker entry point |
 
-* **Domain Coverage**:
-    ![Application Density](./Density_Applications_Scored.png)
-    * The dataset was analyzed for application density. The treemap below illustrates the distribution of reviews across the Top 50 applications in the dataset.
+> [!IMPORTANT]
+> Star ratings are used as a proxy for sentiment. The source dataset is strongly imbalanced—about
+> 77.8% of the cleaned reviews are five-star ratings—so accuracy must be interpreted alongside
+> macro-F1 and class-level errors.
 
-## File Description
+## Model evaluation
 
-| File Name | Description |
-| :--- | :--- |
-| **EDA_First_Preprocess.py** | Initial data processing script using **PySpark**. Handles data cleaning, label scaling, and generates exploratory visualizations like application density and temporal scoring trends. |
-| **Second_Preprocess.py** | Manages text vectorization and embedding. It normalizes text, trains the **FastText** model, and transforms raw strings into padded numerical sequences. |
-| **Cross_Validation.py** | The core research script. It defines the `Bidirectional_Extended_RNNs` class and runs a 5-fold cross-validation pipeline to compare **LSTM** vs. **GRU** architectures. |
-| **Final_Training.py** | Orchestrates the final model training session based on the optimal parameters found during validation and serializes the weights for production use. |
-| **Inference.py** | A real-time prediction script that allows users to input custom text reviews and receive a predicted sentiment level and equivalent star rating. |
-| **Comparison_2_Models.png** | A statistical visualization showing the accuracy and confidence intervals of the Bidirectional LSTM and GRU models. |
-| **Density_Applications_Scored.png** | A treemap visualization illustrating the distribution of reviews across the Top 50 applications in the dataset. |
-| **Scorings_Distribution.png** | A histogram showing the frequency of each star rating (1-5) to identify class imbalances in the training data. |
-| **Scorings_Density_Every_6_Months.png** | KDE plot showing the distribution and shifts of review scores over 6-month temporal intervals. |
-| **setup_dataset.pkl** | The cleaned and processed version of the original parquet data, saved in a format optimized for rapid loading during training. |
-| **model.pkl** | The serialized final trained model, including weights and architecture configurations. |
-| **tokenization_vectorization_model.pkl** | Built-in structural tokenization with Regax, Unicodedata, Cleaning and vectorization with FastText (Gensim). |
-| **processed_review.txt** | Dropping missing reviews and reduce output values by 1 for sparse_categorical_entropy and tensorflow working. |
-| **reviews.parquet** | Primary dataset file. |
+The retained legacy experiment figure indicates the following benchmark after one training epoch:
 
-## Methodology
+| Architecture | Approximate plotted accuracy | Difference |
+|---|---:|---:|
+| Bidirectional LSTM | ≈83.27% | baseline |
+| **Bidirectional GRU** | **≈83.42%** | **≈+0.15 pp** |
 
-### 1. Data Ingestion & Scalable Preprocessing
-* **Scalable ETL**: Utilizes **PySpark** to process large-scale datasets, handling data cleaning, missing value removal, and label scaling (transforming 1–5 stars to a 0–4 range).
-* **Text Normalization**: Implements `unicodedata` NFKD normalization and regex-based tokenization to standardize multilingual characters and handle diverse punctuation patterns.
+The fold-level arrays were not serialized, so these are visual estimates—not precision benchmark
+claims. The original implementation used a 10-fold non-stratified split and a 94% interval; the
+current pipeline upgrades evaluation to stratified K-fold validation, per-fold FastText fitting,
+macro-F1, and 95% confidence intervals. Run `make evaluate` to produce a reproducible result set in
+`artifacts/evaluation/`.
 
-### 2. FastText Embedding & Vectorization
-* **Subword Modeling**: Trains a **FastText** model on the review corpus. This captures character n-grams, allowing the system to generate meaningful vectors for Out-of-Vocabulary (OOV) words, typos, and slang.
-* **Sequence Preparation**: Reviews are transformed into fixed-length sequences ($L=150$) using zero-padding and a **Masking layer** to ensure the RNN ignores non-informative timesteps.
+<details>
+<summary>View the retained legacy experiment figure</summary>
 
-### 3. Recurrent Neural Architectures
-The project compares two high-capacity sequence models to evaluate their effectiveness in capturing contextual nuances:
-* **Bidirectional LSTM**: Utilizes Long Short-Term Memory cells with forget gates to mitigate vanishing gradient problems.
-* **Bidirectional GRU**: Employs Gated Recurrent Units for a computationally efficient alternative to LSTMs while maintaining high accuracy.
+![BiLSTM and BiGRU legacy comparison](docs/assets/model_comparison.png)
 
-### 4. Training & Model Optimization
-* **Loss & Activation**: Employs `sparse_categorical_crossentropy` with a 5-unit `softmax` output layer for probability distribution across classes.
-* **Optimization**: Uses the **Adam** optimizer to minimize cross-entropy loss through backpropagation through time (BPTT).
-* **Environment**: Optimized for **ARM64** architecture, leveraging hardware acceleration (Metal) for training.
+> The original figure's confusion-matrix axis captions are reversed. The current evaluation code
+> uses true ratings on rows and predicted ratings on columns.
 
-### 5. Validation & Performance Metrics
-* **K-Fold Cross-Validation**: Implements a 5-fold split to ensure the model generalizes well across the dataset.
-* **Statistical Benchmarking**:
-    * **Confidence Intervals**: Calculates the mean accuracy and margin of error ($95\%$ confidence).
-    * **Confusion Matrix**: Aggregates predictions to identify specific class-wise misclassifications.
+</details>
 
-## Visualization and Analysis
+## System architecture
 
-![Model Comparison](./Comparison_2_Models.png)
+```mermaid
+flowchart LR
+    A[Hugging Face dataset] --> B[PySpark validation and cleaning]
+    B --> C[(Processed reviews)]
+    C --> D[Unicode tokenization]
+    D --> E[FastText subword model]
+    E --> F[150 × 130 embedding batches]
+    F --> G1[Stacked BiLSTM]
+    F --> G2[Stacked BiGRU]
+    G1 --> H[Stratified evaluation]
+    G2 --> H
+    H --> I[Selected BiGRU model]
+    I --> J[Python API / CLI / Docker]
+```
 
-#### Comparison Summary
+The training loader vectorizes only the active batch. For this dataset, eagerly materializing the
+complete tensor would require roughly 14.4 GiB as `float32`; bounded batches make the same pipeline
+usable on ordinary development machines.
 
-| Architecture | Mean Accuracy | 95% Confidence Interval | Convergence Speed |
-| :--- | :--- | :--- | :--- |
-| **Bidirectional LSTM** | ~82.4% | ±0.14% | Moderate |
-| **Bidirectional GRU** | **~83.1%** | **±0.2%** | **Fast** |
+See [Architecture](docs/ARCHITECTURE.md) for module responsibilities and design decisions.
 
-#### Key Analysis
+## Exploratory analysis
 
-* **Performance Dynamics**: 
-    * **Bidirectional GRU (Green)**: Demonstrated slightly superior accuracy and higher stability across all 5 folds. The smaller confidence interval suggests the GRU architecture is less sensitive to weight initialization and data variance within the Amazon Appstore dataset.
-    * **Bidirectional LSTM (Blue)**: While highly competitive, the LSTM exhibited higher variance between folds. This is likely due to the higher parameter count (3 gates vs. 2 gates), which can lead to minor overfitting on shorter text samples.
+<table>
+  <tr>
+    <td width="50%"><img src="docs/assets/rating_distribution.png" alt="Rating distribution"></td>
+    <td width="50%"><img src="docs/assets/review_volume_by_period.png" alt="Review volume over time"></td>
+  </tr>
+  <tr>
+    <td align="center"><strong>Class distribution</strong></td>
+    <td align="center"><strong>Review activity over time</strong></td>
+  </tr>
+</table>
 
-* **Training Efficiency**:
-    * The **GRU** architecture converged significantly faster than the LSTM. Given the subword-level complexity provided by **FastText**, the simplified gating mechanism of the GRU proved more efficient at capturing sentiment features without redundant computations.
+The imbalance is material: five-star reviews dominate the target distribution, while two- and
+three-star feedback is comparatively rare. Training therefore supports balanced class weights,
+and evaluation reports macro-F1 so minority classes have equal influence on the summary score.
 
-## Technical Stack
+<details>
+<summary>Application coverage</summary>
 
-| Area | Technologies |
-| :--- | :--- |
-| **Deep Learning** | TensorFlow, Keras |
-| **Natural Language Processing** | FastText (Gensim), Regex, Unicodedata |
-| **Large-Scale Data Processing** | Apache Spark (PySpark), Parquet |
-| **Core Data Science** | Pandas, NumPy, Matplotlib, Seaborn, Squarify, Scipy Scikit-learn |
-| **Version Control & Tools** | GitHub, Joblib (Model Serialization) |
+![Top applications by review count](docs/assets/application_density.png)
 
-## How to Run
+</details>
 
-1.  **Clone the Repository**:
-    ```bash
-    cd "Your Directory"
-    git clone https://github.com/Dochikhoa2006/Sentiment-Analysis-Extended-RNNs.git
-    ```
+## Repository structure
 
-2.  **Docker**:
-    * To build docker image:
-        ```bash
-        docker build -t amazon-appstore-reviews-sentiment-multi-classification .
-    * To run docker container:
-        ```bash
-        docker run -it amazon-appstore-reviews-sentiment-multi-classification
-        ```
+```text
+.
+├── .github/workflows/       # Continuous integration
+├── artifacts/               # Local models and evaluation outputs (Git-ignored)
+├── data/
+│   ├── raw/                 # Downloaded source Parquet
+│   ├── interim/             # Inspectable normalized corpus
+│   └── processed/           # Validated modeling dataset
+├── docs/
+│   ├── assets/              # Portfolio visualizations
+│   ├── ARCHITECTURE.md       # Technical design
+│   └── MODEL_CARD.md         # Intended use, metrics, risks, limitations
+├── src/sentiment_analyzer/
+│   ├── cli.py               # Unified workflow interface
+│   ├── data.py              # Download and Spark preprocessing
+│   ├── embeddings.py        # FastText vectorizer
+│   ├── modeling.py          # BiLSTM/BiGRU construction
+│   ├── batching.py          # Memory-bounded Keras batches
+│   ├── training.py          # Final training workflow
+│   ├── evaluation.py        # Stratified cross-validation
+│   └── inference.py         # Stable prediction API
+├── tests/                    # Fast unit tests
+├── Dockerfile
+├── Makefile
+└── pyproject.toml
+```
 
-## License
+## Quick start
 
-This project is licensed under the **CC-BY (Creative Commons Attribution)** license.
+### 1. Install
 
-## Citation
+Python 3.11 or 3.12 and Java 17+ are recommended. Java is required only for the PySpark stages.
 
-Do, Chi Khoa (2026). *Sentiment-Analysis-Extended-RNNs*.  
+```bash
+git clone https://github.com/Dochikhoa2006/Sentiment-Analysis-Extended-RNNs.git
+cd Sentiment-Analysis-Extended-RNNs
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+pip install -e ".[all]"
+```
 
-🔗 [Project Link](https://github.com/Dochikhoa2006/Sentiment-Analysis-Extended-RNNs)
+### 2. Reproduce the pipeline
 
-## Acknowledgements
+```bash
+# Download LocalDoc/application_reviews from Hugging Face
+sentiment-analyzer download
 
-This README structure is inspired by data documentation guidelines from:
+# Validate, clean, and convert labels from 1–5 to 0–4
+sentiment-analyzer prepare
 
-- [Queen’s University README Template](https://guides.library.queensu.ca/ReadmeTemplate)  
-- [Cornell University Data Sharing README Guide](https://data.research.cornell.edu/data-management/sharing/readme/)  
+# Fit the FastText subword vectorizer
+sentiment-analyzer embeddings
 
-This project utilizes the **Amazon Application Reviews Dataset**, available on Hugging Face:
+# Train the selected class-balanced BiGRU model
+sentiment-analyzer train --architecture gru --epochs 5
 
-- [Amazon Application Reviews Dataset](https://huggingface.co/datasets/LocalDoc/application_reviews)
+# Classify a review
+sentiment-analyzer predict --text "The latest update is fast and easy to use."
+```
 
-## Contact
-If you have any questions or suggestions, please contact [dochikhoa2006@gmail.com](dochikhoa2006@gmail.com).
+Example output:
 
+```text
+5/5 — strongly satisfied (confidence: 91.3%)
+```
 
+The confidence above illustrates the CLI format; the actual result depends on the trained
+artifacts and random seed.
 
+### 3. Compare architectures
 
+```bash
+sentiment-analyzer evaluate \
+  --architectures lstm gru \
+  --folds 5 \
+  --epochs 1
+```
 
+Cross-validation intentionally fits FastText inside every training fold to prevent vocabulary and
+embedding leakage from the held-out fold. This is computationally expensive but methodologically
+clean.
 
+## Python API
 
+```python
+from pathlib import Path
 
+from sentiment_analyzer.inference import SentimentPredictor
 
+predictor = SentimentPredictor.from_artifacts(
+    Path("artifacts/fasttext_vectorizer.joblib"),
+    Path("artifacts/sentiment_bigru.keras"),
+)
+prediction = predictor.predict("Useful app, but the login flow is unreliable.")
+print(prediction.to_dict())
+```
 
+## Docker inference
 
+The image contains the inference code but deliberately excludes large model files. Train locally
+or retrieve trusted artifacts, then mount the artifact directory read-only:
 
+```bash
+docker build -t app-review-sentiment .
+docker run --rm -it \
+  -v "$(pwd)/artifacts:/app/artifacts:ro" \
+  app-review-sentiment predict \
+  --text "Simple, responsive, and reliable."
+```
 
+## Engineering quality
 
+```bash
+make install-dev
+make lint
+make test
+```
+
+Continuous integration runs linting and unit tests on Python 3.11 and 3.12. Generated datasets,
+models, and experiment outputs remain outside Git; only code, documentation, and curated figures
+are versioned.
+
+## Dataset and responsible use
+
+The project uses [LocalDoc/application_reviews](https://huggingface.co/datasets/LocalDoc/application_reviews),
+which contains approximately 198k reviews and is distributed under **CC BY-NC 4.0**. The dataset is
+downloaded at runtime and is not redistributed here.
+
+Review text can contain personal, offensive, or culturally specific language. Predictions should
+not be used for automated moderation, individual profiling, or consequential decisions. See the
+[model card](docs/MODEL_CARD.md) for detailed limitations and evaluation expectations.
+
+## License and attribution
+
+Repository code and documentation are licensed under [CC BY 4.0](LICENSE). The dataset has separate
+CC BY-NC 4.0 terms. Trained artifacts may be subject to the source dataset's non-commercial
+restriction; verify those terms before distribution or deployment.
+
+If this work supports your research or portfolio review, please cite:
+
+```text
+Do, Chi Khoa (2026). App Review Sentiment Intelligence:
+FastText with Bidirectional Recurrent Neural Networks.
+https://github.com/Dochikhoa2006/Sentiment-Analysis-Extended-RNNs
+```
+
+## Author
+
+**Chi Khoa Do** · [GitHub](https://github.com/Dochikhoa2006) · [Email](mailto:dochikhoa2006@gmail.com)

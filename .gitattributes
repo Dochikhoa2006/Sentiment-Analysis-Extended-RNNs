@@ -1,1 +1,8 @@
-reviews.parquet filter=lfs diff=lfs merge=lfs -text
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.parquet binary
+*.pkl binary
+*.joblib binary
+*.keras binary

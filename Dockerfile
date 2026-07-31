@@ -1,9 +1,18 @@
-FROM python:3.11-slim
+FROM python:3.11-slim AS runtime
+
 WORKDIR /app
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-RUN apt-get update && apt-get install -y default-jdk && rm -rf /var/lib/apt/lists/*
-COPY . .
+
+ENV PIP_NO_CACHE_DIR=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+COPY pyproject.toml README.md ./
+COPY src ./src
+RUN pip install ".[inference]"
+
+# Models are intentionally not baked into the image. Mount ./artifacts at runtime.
+RUN mkdir -p /app/artifacts
+
 ENV PYTHONUNBUFFERED=1
-ENV PYSPARK_PYTHON=python3
-CMD ["python", "Inference.py"]
+ENTRYPOINT ["sentiment-analyzer"]
+CMD ["predict"]

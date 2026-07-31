@@ -1,10 +1,41 @@
-__pycache__/
+# Operating systems and editors
 .DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
 .venv/
+venv/
+build/
+dist/
 
-*.parquet
-*.pkl
-*.csv
+# Local environment
+.env
+.env.*
+!.env.example
 
-processed_reviews.txt
-run_script
+# Data products (keep directory structure only)
+data/raw/*
+!data/raw/.gitkeep
+data/interim/*
+!data/interim/.gitkeep
+data/processed/*
+!data/processed/.gitkeep
+
+# Trained models and experiment outputs
+artifacts/*
+!artifacts/.gitkeep
+!artifacts/README.md
+
+# Notebook checkpoints and local logs
+.ipynb_checkpoints/
+logs/
+*.log
