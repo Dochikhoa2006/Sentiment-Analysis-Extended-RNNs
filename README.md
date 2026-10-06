@@ -223,7 +223,8 @@ For a UTF-8 file with one review per line, the CLI emits one JSON prediction per
 sentiment-analyzer predict-batch reviews.txt --batch-size 64 > predictions.jsonl
 ```
 
-Blank lines are rejected as invalid reviews.
+Use `--output predictions.jsonl` to replace the output only after the entire file succeeds.
+Blank lines are rejected with their input line number.
 
 ## Docker inference
 

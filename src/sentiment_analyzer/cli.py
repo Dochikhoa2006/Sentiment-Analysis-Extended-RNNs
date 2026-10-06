@@ -4,14 +4,30 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import sys
 from collections.abc import Sequence
 from pathlib import Path
+from tempfile import TemporaryDirectory
+from typing import Any, TextIO
 
 from sentiment_analyzer.config import ModelConfig, ProjectPaths
 
 
 def _path(value: str) -> Path:
     return Path(value).expanduser().resolve()
+
+
+def _write_batch_predictions(predictor: Any, source: TextIO, target: TextIO, size: int) -> None:
+    def reviews():
+        for number, line in enumerate(source, start=1):
+            review = line.rstrip("\r\n")
+            if not review.strip():
+                raise ValueError(f"input line {number} contains an empty review")
+            yield review
+
+    for result in predictor.predict_many(reviews(), batch_size=size):
+        target.write(json.dumps(result.to_dict()) + "\n")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -76,6 +92,7 @@ def build_parser() -> argparse.ArgumentParser:
     batch.add_argument("--vectorizer", type=_path, default=paths.vectorizer)
     batch.add_argument("--model", type=_path, default=paths.model)
     batch.add_argument("--batch-size", type=int, default=128)
+    batch.add_argument("--output", type=_path, help="write JSONL atomically to this file")
     return parser
 
 
@@ -147,9 +164,16 @@ def main(argv: Sequence[str] | None = None) -> None:
 
         if args.batch_size < 1:
             raise ValueError("batch-size must be positive")
+        if args.output == args.input:
+            raise ValueError("output must differ from input")
         predictor = SentimentPredictor.from_artifacts(args.vectorizer, args.model)
         with args.input.open(encoding="utf-8") as stream:
-            for result in predictor.predict_many(
-                (line.rstrip("\r\n") for line in stream), batch_size=args.batch_size
-            ):
-                print(json.dumps(result.to_dict()))
+            if args.output is None:
+                _write_batch_predictions(predictor, stream, sys.stdout, args.batch_size)
+            else:
+                args.output.parent.mkdir(parents=True, exist_ok=True)
+                with TemporaryDirectory(dir=args.output.parent) as directory:
+                    staged = Path(directory) / args.output.name
+                    with staged.open("w", encoding="utf-8") as target:
+                        _write_batch_predictions(predictor, stream, target, args.batch_size)
+                    os.replace(staged, args.output)
