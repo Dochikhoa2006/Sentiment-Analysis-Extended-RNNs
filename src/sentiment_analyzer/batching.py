@@ -32,6 +32,10 @@ class ReviewSequence(_sequence_base()):
         seed: int = 100,
     ) -> None:
         super().__init__()
+        if batch_size < 1:
+            raise ValueError("batch_size must be positive")
+        if sequence_length < 1:
+            raise ValueError("sequence_length must be positive")
         self.texts = np.asarray(texts, dtype=object)
         self.labels = None if labels is None else np.asarray(labels, dtype=np.int64)
         if self.labels is not None and len(self.texts) != len(self.labels):
@@ -45,9 +49,11 @@ class ReviewSequence(_sequence_base()):
         self.on_epoch_end()
 
     def __len__(self) -> int:
-        return int(np.ceil(len(self.indices) / self.batch_size))
+        return (len(self.indices) + self.batch_size - 1) // self.batch_size
 
     def __getitem__(self, index: int):
+        if not 0 <= index < len(self):
+            raise IndexError("batch index out of range")
         selected = self.indices[index * self.batch_size : (index + 1) * self.batch_size]
         features = self.vectorizer.transform(self.texts[selected], self.sequence_length)
         if self.labels is None:
