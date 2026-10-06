@@ -47,8 +47,11 @@ def test_final_training_fits_vectorizer_only_on_training_reviews(
     monkeypatch.setattr(training, "_class_weights", lambda labels: {})
 
     _, metadata = training.train_final_model(
-        tmp_path / "dataset", tmp_path / "vectorizer.joblib", tmp_path / "model.keras",
-        config=ModelConfig(embedding_dimension=2), validation_fraction=0.25,
+        tmp_path / "dataset",
+        tmp_path / "vectorizer.joblib",
+        tmp_path / "model.keras",
+        config=ModelConfig(embedding_dimension=2),
+        validation_fraction=0.25,
     )
 
     assert len(fitted_texts) == metadata["training_rows"] == 15
@@ -59,3 +62,43 @@ def test_final_training_fits_vectorizer_only_on_training_reviews(
 def test_final_training_rejects_invalid_validation_fraction(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="validation_fraction"):
         training.train_final_model(tmp_path, tmp_path, tmp_path, validation_fraction=1)
+
+
+def test_failed_training_preserves_existing_artifacts(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    dataset = pd.DataFrame(
+        {"review": [f"review {i}" for i in range(20)], "star": np.repeat(np.arange(5), 4)}
+    )
+    monkeypatch.setattr(training, "load_dataset", lambda path: dataset)
+    vectorizer_path = tmp_path / "vectorizer.joblib"
+    model_path = tmp_path / "model.keras"
+    metadata_path = tmp_path / "model.metadata.json"
+    for path in (vectorizer_path, model_path, metadata_path):
+        path.write_bytes(b"previous")
+
+    class Vectorizer:
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+        def fit(self, texts):
+            return self
+
+        def save(self, path: Path) -> None:
+            path.write_bytes(b"new")
+
+    class Model:
+        def fit(self, *args, **kwargs):
+            raise RuntimeError("training failed")
+
+    monkeypatch.setattr(training, "EmbeddingVectorizer", Vectorizer)
+    monkeypatch.setattr(training, "ReviewSequence", lambda *args, **kwargs: object())
+    monkeypatch.setattr(training, "build_model", lambda config: Model())
+    monkeypatch.setattr(training, "_class_weights", lambda labels: {})
+
+    with pytest.raises(RuntimeError, match="training failed"):
+        training.train_final_model(
+            tmp_path / "dataset", vectorizer_path, model_path, validation_fraction=0.25
+        )
+    paths = (vectorizer_path, model_path, metadata_path)
+    assert all(path.read_bytes() == b"previous" for path in paths)

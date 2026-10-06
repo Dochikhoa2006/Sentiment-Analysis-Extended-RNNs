@@ -16,8 +16,7 @@ pip install -e ".[all,dev]"
 Run these before opening a pull request:
 
 ```bash
-ruff check src tests
-ruff format --check src tests
+make lint
 pytest
 ```
 
@@ -31,4 +30,3 @@ outputs. The `.gitignore` preserves the expected local directories with `.gitkee
 - Update the README or model card when the interface, methodology, or reported metrics change.
 - Never replace historical benchmark values with a new run unless the environment and protocol are
   documented and the machine-readable results are retained.
-

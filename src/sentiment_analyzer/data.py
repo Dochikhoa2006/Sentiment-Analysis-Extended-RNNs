@@ -83,15 +83,21 @@ def validate_dataset(dataset: Any) -> None:
     if len(dataset) == 0:
         raise ValueError("processed dataset is empty")
     reviews = dataset["review"]
-    if reviews.isna().any() or not reviews.map(
-        lambda value: isinstance(value, str) and bool(value.strip())
-    ).all():
+    if (
+        reviews.isna().any()
+        or not reviews.map(lambda value: isinstance(value, str) and bool(value.strip())).all()
+    ):
         raise ValueError("reviews must be non-empty strings")
 
     labels = dataset["star"]
-    if labels.isna().any() or not labels.map(
-        lambda value: isinstance(value, (int, np.integer))
-        and not isinstance(value, (bool, np.bool_))
-        and 0 <= value <= 4
-    ).all():
+    if (
+        labels.isna().any()
+        or not labels.map(
+            lambda value: (
+                isinstance(value, (int, np.integer))
+                and not isinstance(value, (bool, np.bool_))
+                and 0 <= value <= 4
+            )
+        ).all()
+    ):
         raise ValueError("star labels must be zero-based integers in the range 0..4")

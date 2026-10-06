@@ -51,6 +51,8 @@ The vectorizer remains a Joblib artifact because it wraps a Gensim model. Compat
 local artifacts created by the original flat scripts to be loaded during migration. Training metadata
 records SHA-256 hashes for the model and vectorizer. Inference checks these hashes and uses the
 training sequence length when metadata exists, preventing accidental artifact mismatches.
+Final training stages new artifacts in temporary directories and publishes metadata last. A failed
+fit or save therefore leaves the previous artifact pair intact.
 
 ## Runtime boundaries
 

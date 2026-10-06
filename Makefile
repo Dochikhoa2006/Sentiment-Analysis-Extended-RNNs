@@ -8,6 +8,7 @@ install-dev:
 
 lint:
 	ruff check src tests
+	ruff format --check src tests
 
 format:
 	ruff format src tests

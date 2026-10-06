@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import json
 import os
+from contextlib import ExitStack
 from datetime import UTC, datetime
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import Any
 
 import numpy as np
@@ -93,7 +95,6 @@ def train_final_model(
             workers=max(1, (os.cpu_count() or 2) // 2),
             seed=model_config.seed,
         ).fit(train_texts)
-        vectorizer.save(vectorizer_path)
     train_batches = ReviewSequence(
         train_texts,
         vectorizer,
@@ -120,23 +121,42 @@ def train_final_model(
         callbacks=[EarlyStopping(monitor="val_loss", patience=2, restore_best_weights=True)],
     )
     destination.parent.mkdir(parents=True, exist_ok=True)
-    model.save(destination)
+    with ExitStack() as stack:
+        model_dir = Path(stack.enter_context(TemporaryDirectory(dir=destination.parent)))
+        staged_model = model_dir / destination.name
+        model.save(staged_model)
+        if reuse_vectorizer:
+            staged_vectorizer = vectorizer_path
+        else:
+            vectorizer_path.parent.mkdir(parents=True, exist_ok=True)
+            vectorizer_dir = Path(
+                stack.enter_context(TemporaryDirectory(dir=vectorizer_path.parent))
+            )
+            staged_vectorizer = vectorizer_dir / vectorizer_path.name
+            vectorizer.save(staged_vectorizer)
 
-    metadata = {
-        "created_at": datetime.now(UTC).isoformat(),
-        "config": model_config.to_dict(),
-        "training_rows": int(len(train_labels)),
-        "validation_rows": int(len(validation_labels)),
-        "class_weights_enabled": balance_classes,
-        "vectorizer_fitted_on_training_split": not reuse_vectorizer,
-        "artifacts": {
-            "model_sha256": artifact_sha256(destination),
-            "vectorizer_sha256": artifact_sha256(vectorizer_path),
-        },
-        "history": {
-            key: [float(value) for value in values] for key, values in history.history.items()
-        },
-    }
-    metadata_path = destination.with_suffix(".metadata.json")
-    metadata_path.write_text(json.dumps(metadata, indent=2), encoding="utf-8")
+        metadata = {
+            "created_at": datetime.now(UTC).isoformat(),
+            "config": model_config.to_dict(),
+            "training_rows": int(len(train_labels)),
+            "validation_rows": int(len(validation_labels)),
+            "class_weights_enabled": balance_classes,
+            "vectorizer_fitted_on_training_split": not reuse_vectorizer,
+            "artifacts": {
+                "model_sha256": artifact_sha256(staged_model),
+                "vectorizer_sha256": artifact_sha256(staged_vectorizer),
+            },
+            "history": {
+                key: [float(value) for value in values] for key, values in history.history.items()
+            },
+        }
+        metadata_path = destination.with_suffix(".metadata.json")
+        staged_metadata = model_dir / metadata_path.name
+        staged_metadata.write_text(json.dumps(metadata, indent=2), encoding="utf-8")
+
+        # Publish metadata last so readers can detect any pair changed mid-publication.
+        if not reuse_vectorizer:
+            os.replace(staged_vectorizer, vectorizer_path)
+        os.replace(staged_model, destination)
+        os.replace(staged_metadata, metadata_path)
     return model, metadata
