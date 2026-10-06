@@ -49,6 +49,11 @@ def build_parser() -> argparse.ArgumentParser:
     train.add_argument("--epochs", type=int, default=5)
     train.add_argument("--batch-size", type=int, default=128)
     train.add_argument("--no-class-weights", action="store_true")
+    train.add_argument(
+        "--reuse-vectorizer",
+        action="store_true",
+        help="reuse an existing vectorizer instead of fitting on the training split",
+    )
 
     evaluate = subparsers.add_parser("evaluate", help="run stratified cross-validation")
     evaluate.add_argument("--dataset", type=_path, default=paths.processed_dataset)
@@ -113,6 +118,7 @@ def main(argv: Sequence[str] | None = None) -> None:
             batch_size=args.batch_size,
             epochs=args.epochs,
             balance_classes=not args.no_class_weights,
+            reuse_vectorizer=args.reuse_vectorizer,
         )
         print(json.dumps(metadata, indent=2))
     elif args.command == "evaluate":

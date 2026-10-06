@@ -40,6 +40,10 @@ severe label imbalance across folds, while macro-F1 exposes performance on rare 
 architectures in a fold use the same fitted FastText vectorizer, so their comparison shares the
 same input representation without repeating embedding training.
 
+Final training likewise splits reviews before fitting FastText. The fitted vectorizer is saved
+beside the model. An explicit reuse option supports existing pretrained vectorizers, but validation
+metrics from that mode can include embedding leakage when the vectorizer saw validation reviews.
+
 ### Artifact format
 
 New neural models use TensorFlow's native `.keras` format rather than pickling application classes.

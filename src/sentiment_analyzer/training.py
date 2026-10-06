@@ -60,19 +60,17 @@ def train_final_model(
     epochs: int = 5,
     validation_fraction: float = 0.1,
     balance_classes: bool = True,
+    reuse_vectorizer: bool = False,
 ) -> tuple[Any, dict[str, Any]]:
     from sklearn.model_selection import train_test_split
     from tensorflow.keras.callbacks import EarlyStopping
 
     model_config = config or ModelConfig()
+    if not 0 < validation_fraction < 1:
+        raise ValueError("validation_fraction must be between 0 and 1")
+    if batch_size < 1 or epochs < 1:
+        raise ValueError("batch_size and epochs must be positive")
     dataset = load_dataset(dataset_path)
-    vectorizer = load_vectorizer(vectorizer_path)
-    if vectorizer.dimension != model_config.embedding_dimension:
-        raise ValueError(
-            "vectorizer dimension does not match model config: "
-            f"{vectorizer.dimension} != {model_config.embedding_dimension}"
-        )
-
     texts = dataset["review"].astype(str).to_numpy()
     labels = dataset["star"].astype(np.int64).to_numpy()
     train_texts, validation_texts, train_labels, validation_labels = train_test_split(
@@ -82,6 +80,20 @@ def train_final_model(
         random_state=model_config.seed,
         stratify=labels,
     )
+    if reuse_vectorizer:
+        vectorizer = load_vectorizer(vectorizer_path)
+        if vectorizer.dimension != model_config.embedding_dimension:
+            raise ValueError(
+                "vectorizer dimension does not match model config: "
+                f"{vectorizer.dimension} != {model_config.embedding_dimension}"
+            )
+    else:
+        vectorizer = EmbeddingVectorizer(
+            model_config.embedding_dimension,
+            workers=max(1, (os.cpu_count() or 2) // 2),
+            seed=model_config.seed,
+        ).fit(train_texts)
+        vectorizer.save(vectorizer_path)
     train_batches = ReviewSequence(
         train_texts,
         vectorizer,
@@ -116,6 +128,7 @@ def train_final_model(
         "training_rows": int(len(train_labels)),
         "validation_rows": int(len(validation_labels)),
         "class_weights_enabled": balance_classes,
+        "vectorizer_fitted_on_training_split": not reuse_vectorizer,
         "artifacts": {
             "model_sha256": artifact_sha256(destination),
             "vectorizer_sha256": artifact_sha256(vectorizer_path),

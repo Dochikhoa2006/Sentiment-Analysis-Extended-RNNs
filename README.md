@@ -164,10 +164,7 @@ sentiment-analyzer download
 # Validate, clean, and convert labels from 1–5 to 0–4
 sentiment-analyzer prepare
 
-# Fit the FastText subword vectorizer
-sentiment-analyzer embeddings
-
-# Train the selected class-balanced BiGRU model
+# Split the data, fit FastText on training reviews, then train the class-balanced BiGRU
 sentiment-analyzer train --architecture gru --epochs 5
 
 # Classify a review
@@ -195,6 +192,11 @@ sentiment-analyzer evaluate \
 Cross-validation intentionally fits FastText inside every training fold to prevent vocabulary and
 embedding leakage from the held-out fold. This is computationally expensive but methodologically
 clean.
+
+Final training also fits FastText after its validation split, so validation reviews do not enter
+the embedding vocabulary. To reuse a separately trained vectorizer, pass `--reuse-vectorizer`;
+that mode should not be used to interpret validation metrics as held-out performance if the
+vectorizer was fitted on those reviews.
 
 ## Python API
 
