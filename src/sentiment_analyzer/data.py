@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 import joblib
+import numpy as np
 
 DATASET_ID = "LocalDoc/application_reviews"
 REQUIRED_RAW_COLUMNS = {"review", "star", "date", "package_name"}
@@ -50,6 +51,7 @@ def prepare_dataset(source: Path, destination: Path) -> Any:
             .dropna(subset=["review", "star"])
             .filter(sql.length(sql.trim(sql.col("review"))) > 0)
             .filter(sql.col("star").between(1, 5))
+            .filter(sql.col("star") == sql.col("star").cast("int"))
             .withColumn("star", sql.col("star").cast("int") - 1)
         )
         result = cleaned.toPandas()
@@ -80,6 +82,16 @@ def validate_dataset(dataset: Any) -> None:
         raise ValueError(f"processed dataset is missing columns: {sorted(missing)}")
     if len(dataset) == 0:
         raise ValueError("processed dataset is empty")
-    labels = set(int(value) for value in dataset["star"].unique())
-    if not labels.issubset(set(range(5))):
+    reviews = dataset["review"]
+    if reviews.isna().any() or not reviews.map(
+        lambda value: isinstance(value, str) and bool(value.strip())
+    ).all():
+        raise ValueError("reviews must be non-empty strings")
+
+    labels = dataset["star"]
+    if labels.isna().any() or not labels.map(
+        lambda value: isinstance(value, (int, np.integer))
+        and not isinstance(value, (bool, np.bool_))
+        and 0 <= value <= 4
+    ).all():
         raise ValueError("star labels must be zero-based integers in the range 0..4")
