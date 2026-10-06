@@ -36,13 +36,17 @@ constructs only the active batch and keeps memory proportional to batch size.
 
 FastText is fitted independently inside each cross-validation training fold. The held-out fold does
 not influence its vocabulary or learned subword representations. `StratifiedKFold` preserves the
-severe label imbalance across folds, while macro-F1 exposes performance on rare classes.
+severe label imbalance across folds, while macro-F1 exposes performance on rare classes. All
+architectures in a fold use the same fitted FastText vectorizer, so their comparison shares the
+same input representation without repeating embedding training.
 
 ### Artifact format
 
 New neural models use TensorFlow's native `.keras` format rather than pickling application classes.
 The vectorizer remains a Joblib artifact because it wraps a Gensim model. Compatibility shims allow
-local artifacts created by the original flat scripts to be loaded during migration.
+local artifacts created by the original flat scripts to be loaded during migration. Training metadata
+records SHA-256 hashes for the model and vectorizer. Inference checks these hashes and uses the
+training sequence length when metadata exists, preventing accidental artifact mismatches.
 
 ## Runtime boundaries
 
@@ -58,4 +62,3 @@ This split keeps the Docker inference image independent of Java, Spark, and visu
 Architecture settings and seeds live in `ModelConfig`. Final training writes a metadata JSON file
 next to the model. Evaluation writes machine-readable per-fold metrics and aggregate confusion
 matrices. Exact neural results can still vary slightly across hardware and TensorFlow kernels.
-

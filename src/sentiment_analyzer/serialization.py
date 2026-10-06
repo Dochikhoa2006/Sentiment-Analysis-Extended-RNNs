@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import sys
 import types
+from hashlib import sha256
 from pathlib import Path
 from typing import Any
 
@@ -11,6 +12,16 @@ import joblib
 import numpy as np
 
 from sentiment_analyzer.embeddings import EmbeddingVectorizer
+
+
+def artifact_sha256(source: Path) -> str:
+    """Hash an artifact without loading it into memory."""
+
+    digest = sha256()
+    with source.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 class LegacyBidirectionalRNN:

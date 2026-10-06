@@ -15,7 +15,7 @@ from sentiment_analyzer.config import ModelConfig
 from sentiment_analyzer.data import load_dataset
 from sentiment_analyzer.embeddings import EmbeddingVectorizer
 from sentiment_analyzer.modeling import build_model
-from sentiment_analyzer.serialization import load_vectorizer
+from sentiment_analyzer.serialization import artifact_sha256, load_vectorizer
 
 
 def train_embeddings(
@@ -116,6 +116,10 @@ def train_final_model(
         "training_rows": int(len(train_labels)),
         "validation_rows": int(len(validation_labels)),
         "class_weights_enabled": balance_classes,
+        "artifacts": {
+            "model_sha256": artifact_sha256(destination),
+            "vectorizer_sha256": artifact_sha256(vectorizer_path),
+        },
         "history": {
             key: [float(value) for value in values] for key, values in history.history.items()
         },

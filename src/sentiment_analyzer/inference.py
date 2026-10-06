@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Iterable, Iterator
 from dataclasses import asdict, dataclass
 from itertools import islice
@@ -11,7 +12,7 @@ from typing import Any
 import numpy as np
 
 from sentiment_analyzer.embeddings import EmbeddingVectorizer
-from sentiment_analyzer.serialization import load_model, load_vectorizer
+from sentiment_analyzer.serialization import artifact_sha256, load_model, load_vectorizer
 
 SENTIMENT_LABELS = (
     "strongly dissatisfied",
@@ -51,12 +52,31 @@ class SentimentPredictor:
         vectorizer_path: Path,
         model_path: Path,
         *,
-        sequence_length: int = 150,
+        sequence_length: int | None = None,
     ) -> SentimentPredictor:
+        metadata_path = model_path.with_suffix(".metadata.json")
+        if metadata_path.exists():
+            metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+            hashes = metadata.get("artifacts", {})
+            for name, path in (("model", model_path), ("vectorizer", vectorizer_path)):
+                expected = hashes.get(f"{name}_sha256")
+                if expected is not None and artifact_sha256(path) != expected:
+                    raise ValueError(f"{name} artifact does not match training metadata: {path}")
+            config = metadata.get("config", {})
+            trained_length = config.get("sequence_length")
+            if trained_length is not None and sequence_length not in (None, trained_length):
+                raise ValueError("sequence_length does not match the trained model")
+            if sequence_length is None:
+                sequence_length = trained_length
+        vectorizer = load_vectorizer(vectorizer_path)
+        if metadata_path.exists():
+            dimension = config.get("embedding_dimension")
+            if dimension is not None and vectorizer.dimension != dimension:
+                raise ValueError("vectorizer dimension does not match the trained model")
         return cls(
-            load_vectorizer(vectorizer_path),
+            vectorizer,
             load_model(model_path),
-            sequence_length=sequence_length,
+            sequence_length=sequence_length or 150,
         )
 
     def predict(self, review: str) -> Prediction:

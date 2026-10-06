@@ -47,29 +47,33 @@ def cross_validate(
     from sklearn.model_selection import StratifiedKFold
 
     base_config = config or ModelConfig()
+    if not architectures or len(set(architectures)) != len(architectures):
+        raise ValueError("architectures must contain unique model names")
+    if folds < 2 or epochs < 1 or batch_size < 1:
+        raise ValueError("folds must be at least 2; epochs and batch_size must be positive")
+    configurations = {name: replace(base_config, architecture=name) for name in architectures}
     dataset = load_dataset(dataset_path)
     texts = dataset["review"].astype(str).to_numpy()
     labels = dataset["star"].astype(np.int64).to_numpy()
     splitter = StratifiedKFold(n_splits=folds, shuffle=True, random_state=base_config.seed)
     splits = list(splitter.split(texts, labels))
-    results: dict[str, Any] = {}
-
-    for architecture in architectures:
-        architecture_config = replace(base_config, architecture=architecture)
-        fold_metrics: list[dict[str, float]] = []
-        aggregate_matrix = np.zeros(
-            (architecture_config.number_of_classes, architecture_config.number_of_classes),
-            dtype=np.int64,
+    fold_metrics: dict[str, list[dict[str, float]]] = {name: [] for name in architectures}
+    matrices = {
+        name: np.zeros(
+            (base_config.number_of_classes, base_config.number_of_classes), dtype=np.int64
         )
+        for name in architectures
+    }
 
-        for fold_number, (train_index, test_index) in enumerate(splits, start=1):
-            train_texts, test_texts = texts[train_index], texts[test_index]
-            train_labels, test_labels = labels[train_index], labels[test_index]
-            vectorizer = EmbeddingVectorizer(
-                architecture_config.embedding_dimension,
-                workers=max(1, (os.cpu_count() or 2) // 2),
-                seed=architecture_config.seed + fold_number,
-            ).fit(train_texts)
+    for fold_number, (train_index, test_index) in enumerate(splits, start=1):
+        train_texts, test_texts = texts[train_index], texts[test_index]
+        train_labels, test_labels = labels[train_index], labels[test_index]
+        vectorizer = EmbeddingVectorizer(
+            base_config.embedding_dimension,
+            workers=max(1, (os.cpu_count() or 2) // 2),
+            seed=base_config.seed + fold_number,
+        ).fit(train_texts)
+        for architecture, architecture_config in configurations.items():
             train_batches = ReviewSequence(
                 train_texts,
                 vectorizer,
@@ -95,23 +99,28 @@ def cross_validate(
             predictions = np.argmax(model.predict(test_batches, verbose=0), axis=1)
             accuracy = float(accuracy_score(test_labels, predictions))
             macro_f1 = float(f1_score(test_labels, predictions, average="macro"))
-            fold_metrics.append({"fold": fold_number, "accuracy": accuracy, "macro_f1": macro_f1})
-            aggregate_matrix += confusion_matrix(
+            fold_metrics[architecture].append(
+                {"fold": fold_number, "accuracy": accuracy, "macro_f1": macro_f1}
+            )
+            matrices[architecture] += confusion_matrix(
                 test_labels,
                 predictions,
                 labels=np.arange(architecture_config.number_of_classes),
             )
             tf.keras.backend.clear_session()
 
-        accuracies = [fold["accuracy"] for fold in fold_metrics]
-        macro_scores = [fold["macro_f1"] for fold in fold_metrics]
+    results: dict[str, Any] = {}
+    for architecture in architectures:
+        metrics = fold_metrics[architecture]
+        accuracies = [fold["accuracy"] for fold in metrics]
+        macro_scores = [fold["macro_f1"] for fold in metrics]
         accuracy_mean, accuracy_margin = confidence_interval(accuracies)
         macro_mean, macro_margin = confidence_interval(macro_scores)
         results[architecture] = {
-            "folds": fold_metrics,
+            "folds": metrics,
             "accuracy": {"mean": accuracy_mean, "margin_95": accuracy_margin},
             "macro_f1": {"mean": macro_mean, "margin_95": macro_margin},
-            "confusion_matrix": aggregate_matrix.tolist(),
+            "confusion_matrix": matrices[architecture].tolist(),
         }
 
     output_dir.mkdir(parents=True, exist_ok=True)
