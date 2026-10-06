@@ -209,7 +209,19 @@ predictor = SentimentPredictor.from_artifacts(
 )
 prediction = predictor.predict("Useful app, but the login flow is unreliable.")
 print(prediction.to_dict())
+
+# Streams results in input order while limiting vectorization to 64 reviews at a time.
+for prediction in predictor.predict_many(reviews, batch_size=64):
+    print(prediction.to_dict())
 ```
+
+For a UTF-8 file with one review per line, the CLI emits one JSON prediction per line:
+
+```bash
+sentiment-analyzer predict-batch reviews.txt --batch-size 64 > predictions.jsonl
+```
+
+Blank lines are rejected as invalid reviews.
 
 ## Docker inference
 

@@ -65,6 +65,12 @@ def build_parser() -> argparse.ArgumentParser:
     predict.add_argument("--vectorizer", type=_path, default=paths.vectorizer)
     predict.add_argument("--model", type=_path, default=paths.model)
     predict.add_argument("--json", action="store_true", dest="as_json")
+
+    batch = subparsers.add_parser("predict-batch", help="classify newline-delimited reviews")
+    batch.add_argument("input", type=_path, help="UTF-8 file with one review per line")
+    batch.add_argument("--vectorizer", type=_path, default=paths.vectorizer)
+    batch.add_argument("--model", type=_path, default=paths.model)
+    batch.add_argument("--batch-size", type=int, default=128)
     return parser
 
 
@@ -130,3 +136,14 @@ def main(argv: Sequence[str] | None = None) -> None:
             print(json.dumps(result.to_dict(), indent=2))
         else:
             print(f"{result.rating}/5 — {result.sentiment} (confidence: {result.confidence:.1%})")
+    elif args.command == "predict-batch":
+        from sentiment_analyzer.inference import SentimentPredictor
+
+        if args.batch_size < 1:
+            raise ValueError("batch-size must be positive")
+        predictor = SentimentPredictor.from_artifacts(args.vectorizer, args.model)
+        with args.input.open(encoding="utf-8") as stream:
+            for result in predictor.predict_many(
+                (line.rstrip("\r\n") for line in stream), batch_size=args.batch_size
+            ):
+                print(json.dumps(result.to_dict()))

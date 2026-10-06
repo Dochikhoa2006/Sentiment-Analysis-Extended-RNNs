@@ -37,3 +37,38 @@ def test_predict_returns_model_class_instead_of_second_argmax() -> None:
 def test_predict_rejects_empty_review() -> None:
     with pytest.raises(ValueError, match="empty"):
         _predictor().predict("   ")
+
+
+def test_predict_many_preserves_order_and_bounds_batch_size() -> None:
+    class Model:
+        sizes: list[int] = []
+
+        def predict(self, features: np.ndarray, verbose: int = 0) -> np.ndarray:
+            self.sizes.append(len(features))
+            scores = np.zeros((len(features), 5), dtype=np.float32)
+            scores[:, 3] = 1.0
+            return scores
+
+    model = Model()
+    predictor = _predictor()
+    predictor.model = model
+    results = list(predictor.predict_many((f"review {n}" for n in range(5)), batch_size=2))
+
+    assert model.sizes == [2, 2, 1]
+    assert [result.rating for result in results] == [4] * 5
+
+
+def test_predict_many_rejects_bad_model_output() -> None:
+    class Model:
+        def predict(self, features: np.ndarray, verbose: int = 0) -> np.ndarray:
+            return np.full((len(features), 4), 0.25)
+
+    predictor = _predictor()
+    predictor.model = Model()
+    with pytest.raises(ValueError, match="shape"):
+        list(predictor.predict_many(["review"]))
+
+
+def test_predict_many_rejects_invalid_batch_size() -> None:
+    with pytest.raises(ValueError, match="batch_size"):
+        list(_predictor().predict_many(["review"], batch_size=0))
