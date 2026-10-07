@@ -69,6 +69,26 @@ def test_predict_many_rejects_bad_model_output() -> None:
         list(predictor.predict_many(["review"]))
 
 
+@pytest.mark.parametrize(
+    "scores",
+    [
+        [0.1, 0.1, 0.1, 0.1, 0.1],
+        [-0.1, 0.1, 0.1, 0.1, 0.8],
+        [0.0, 0.0, 0.0, 0.0, 1.1],
+        [0.0, 0.0, 0.0, 0.0, float("nan")],
+    ],
+)
+def test_predict_many_rejects_invalid_probability_distributions(scores: list[float]) -> None:
+    class Model:
+        def predict(self, features: np.ndarray, verbose: int = 0) -> np.ndarray:
+            return np.asarray([scores] * len(features))
+
+    predictor = _predictor()
+    predictor.model = Model()
+    with pytest.raises(ValueError, match="probability|non-finite"):
+        list(predictor.predict_many(["review"]))
+
+
 def test_predict_many_rejects_invalid_batch_size() -> None:
     with pytest.raises(ValueError, match="batch_size"):
         list(_predictor().predict_many(["review"], batch_size=0))

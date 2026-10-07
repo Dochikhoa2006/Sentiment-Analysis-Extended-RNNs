@@ -49,3 +49,30 @@ def test_inference_rejects_wrong_sequence_length(
     model, vectorizer = _artifacts(tmp_path)
     with pytest.raises(ValueError, match="sequence_length"):
         inference.SentimentPredictor.from_artifacts(vectorizer, model, sequence_length=150)
+
+
+@pytest.mark.parametrize(
+    ("input_shape", "output_shape", "message"),
+    [
+        ((None, 13, 2), (None, 5), "input shape"),
+        ((None, 12, 3), (None, 5), "input shape"),
+        ((None, 12, 2), (None, 4), "output shape"),
+    ],
+)
+def test_inference_rejects_incompatible_model_shapes(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    input_shape: tuple[int | None, ...],
+    output_shape: tuple[int | None, ...],
+    message: str,
+) -> None:
+    model, vectorizer = _artifacts(tmp_path)
+    stub = type("Vectorizer", (), {"dimension": 2})()
+    monkeypatch.setattr(inference, "load_vectorizer", lambda path: stub)
+    incompatible = type(
+        "Model", (), {"input_shape": input_shape, "output_shape": output_shape}
+    )()
+    monkeypatch.setattr(inference, "load_model", lambda path: incompatible)
+
+    with pytest.raises(ValueError, match=message):
+        inference.SentimentPredictor.from_artifacts(vectorizer, model)

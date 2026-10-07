@@ -73,11 +73,22 @@ class SentimentPredictor:
             dimension = config.get("embedding_dimension")
             if dimension is not None and vectorizer.dimension != dimension:
                 raise ValueError("vectorizer dimension does not match the trained model")
-        return cls(
-            vectorizer,
-            load_model(model_path),
-            sequence_length=sequence_length or 150,
-        )
+        model = load_model(model_path)
+        effective_length = sequence_length or 150
+        keras_model = getattr(model, "model", model)
+        input_shape = getattr(keras_model, "input_shape", None)
+        if input_shape is not None and (
+            len(input_shape) != 3
+            or input_shape[1] not in (None, effective_length)
+            or input_shape[2] not in (None, vectorizer.dimension)
+        ):
+            raise ValueError("model input shape does not match the vectorizer and sequence length")
+        output_shape = getattr(keras_model, "output_shape", None)
+        if output_shape is not None and (
+            len(output_shape) != 2 or output_shape[1] != len(SENTIMENT_LABELS)
+        ):
+            raise ValueError("model output shape does not match the sentiment labels")
+        return cls(vectorizer, model, sequence_length=effective_length)
 
     def predict(self, review: str) -> Prediction:
         return next(self.predict_many([review], batch_size=1))
@@ -100,6 +111,10 @@ class SentimentPredictor:
                 raise ValueError("model returned an unexpected prediction shape")
             if not np.all(np.isfinite(scores)):
                 raise ValueError("model returned non-finite prediction scores")
+            if np.any(scores < 0) or np.any(scores > 1) or not np.allclose(
+                scores.sum(axis=1), 1.0, rtol=1e-5, atol=1e-5
+            ):
+                raise ValueError("model returned invalid probability distributions")
             for probabilities in scores:
                 yield self._result(probabilities)
 
