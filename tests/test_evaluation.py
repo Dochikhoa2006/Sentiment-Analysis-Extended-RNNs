@@ -46,7 +46,9 @@ def test_cross_validation_reuses_fold_embeddings_across_architectures(
     monkeypatch.setattr(evaluation, "EmbeddingVectorizer", Vectorizer)
     monkeypatch.setattr(evaluation, "ReviewSequence", Batches)
     monkeypatch.setattr(evaluation, "build_model", lambda config: Model(config.architecture))
-    monkeypatch.setattr(evaluation, "_plot_results", lambda results, path: None)
+    monkeypatch.setattr(
+        evaluation, "_plot_results", lambda results, path: path.write_bytes(b"comparison")
+    )
     monkeypatch.setattr(evaluation, "_class_weights", lambda labels: {})
     monkeypatch.setitem(
         sys.modules,
@@ -78,9 +80,7 @@ def test_cross_validation_rejects_insufficient_class_coverage(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, counts: tuple[int, ...]
 ) -> None:
     labels = np.repeat(np.arange(5), counts)
-    dataset = pd.DataFrame(
-        {"review": [f"review {i}" for i in range(len(labels))], "star": labels}
-    )
+    dataset = pd.DataFrame({"review": [f"review {i}" for i in range(len(labels))], "star": labels})
     monkeypatch.setattr(evaluation, "load_dataset", lambda path: dataset)
     monkeypatch.setitem(
         sys.modules,
@@ -90,3 +90,28 @@ def test_cross_validation_rejects_insufficient_class_coverage(
 
     with pytest.raises(ValueError, match="each rating needs at least 2 reviews"):
         evaluation.cross_validate(tmp_path / "dataset", tmp_path, folds=2)
+
+
+def test_evaluation_keeps_previous_outputs_when_plot_fails(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    metrics = tmp_path / "metrics.json"
+    plot = tmp_path / "model_comparison.png"
+    metrics.write_text("previous metrics", encoding="utf-8")
+    plot.write_bytes(b"previous plot")
+
+    def failing_plot(results: dict, destination: Path) -> None:
+        destination.write_bytes(b"partial plot")
+        raise RuntimeError("plot failed")
+
+    monkeypatch.setattr(evaluation, "_plot_results", failing_plot)
+
+    with pytest.raises(RuntimeError, match="plot failed"):
+        evaluation._publish_results({"gru": {"accuracy": 0.8}}, tmp_path)
+
+    assert metrics.read_text(encoding="utf-8") == "previous metrics"
+    assert plot.read_bytes() == b"previous plot"
+    assert sorted(path.name for path in tmp_path.iterdir()) == [
+        "metrics.json",
+        "model_comparison.png",
+    ]

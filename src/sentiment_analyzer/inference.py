@@ -111,8 +111,10 @@ class SentimentPredictor:
                 raise ValueError("model returned an unexpected prediction shape")
             if not np.all(np.isfinite(scores)):
                 raise ValueError("model returned non-finite prediction scores")
-            if np.any(scores < 0) or np.any(scores > 1) or not np.allclose(
-                scores.sum(axis=1), 1.0, rtol=1e-5, atol=1e-5
+            if (
+                np.any(scores < 0)
+                or np.any(scores > 1)
+                or not np.allclose(scores.sum(axis=1), 1.0, rtol=1e-5, atol=1e-5)
             ):
                 raise ValueError("model returned invalid probability distributions")
             for probabilities in scores:

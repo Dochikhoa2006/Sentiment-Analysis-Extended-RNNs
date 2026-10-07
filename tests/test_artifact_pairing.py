@@ -69,9 +69,7 @@ def test_inference_rejects_incompatible_model_shapes(
     model, vectorizer = _artifacts(tmp_path)
     stub = type("Vectorizer", (), {"dimension": 2})()
     monkeypatch.setattr(inference, "load_vectorizer", lambda path: stub)
-    incompatible = type(
-        "Model", (), {"input_shape": input_shape, "output_shape": output_shape}
-    )()
+    incompatible = type("Model", (), {"input_shape": input_shape, "output_shape": output_shape})()
     monkeypatch.setattr(inference, "load_model", lambda path: incompatible)
 
     with pytest.raises(ValueError, match=message):

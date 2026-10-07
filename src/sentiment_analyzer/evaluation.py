@@ -6,6 +6,7 @@ import json
 import os
 from dataclasses import replace
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import Any
 
 import numpy as np
@@ -144,10 +145,22 @@ def cross_validate(
             "confusion_matrix": matrices[architecture].tolist(),
         }
 
-    output_dir.mkdir(parents=True, exist_ok=True)
-    (output_dir / "metrics.json").write_text(json.dumps(results, indent=2), encoding="utf-8")
-    _plot_results(results, output_dir / "model_comparison.png")
+    _publish_results(results, output_dir)
     return results
+
+
+def _publish_results(results: dict[str, Any], output_dir: Path) -> None:
+    """Generate both outputs before replacing files from an earlier evaluation."""
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    with TemporaryDirectory(dir=output_dir) as directory:
+        staged = Path(directory)
+        metrics = staged / "metrics.json"
+        plot = staged / "model_comparison.png"
+        metrics.write_text(json.dumps(results, indent=2), encoding="utf-8")
+        _plot_results(results, plot)
+        os.replace(plot, output_dir / plot.name)
+        os.replace(metrics, output_dir / metrics.name)
 
 
 def _plot_results(results: dict[str, Any], destination: Path) -> None:
