@@ -74,21 +74,30 @@ class EmbeddingVectorizer:
     def transform_one(self, text: str, sequence_length: int = 150) -> np.ndarray:
         """Return one zero-padded ``[sequence_length, vector_size]`` matrix."""
 
+        self._validate_transform(sequence_length)
+        matrix = np.zeros((sequence_length, self.dimension), dtype=np.float32)
+        self._fill_matrix(text, matrix)
+        return matrix
+
+    def _validate_transform(self, sequence_length: int) -> None:
         if self.model is None:
             raise RuntimeError("the vectorizer must be fitted before transform")
         if sequence_length < 1:
             raise ValueError("sequence_length must be positive")
 
-        matrix = np.zeros((sequence_length, self.dimension), dtype=np.float32)
-        for index, token in enumerate(tokenize(text)[:sequence_length]):
+    def _fill_matrix(self, text: str, matrix: np.ndarray) -> None:
+        for index, token in enumerate(tokenize(text)[: len(matrix)]):
             matrix[index] = np.asarray(self.model.wv[token], dtype=np.float32)
-        return matrix
 
     def transform(self, texts: Iterable[str], sequence_length: int = 150) -> np.ndarray:
-        matrices = [self.transform_one(text, sequence_length) for text in texts]
-        if not matrices:
-            return np.empty((0, sequence_length, self.dimension), dtype=np.float32)
-        return np.stack(matrices)
+        """Fill one batch allocation, avoiding a second copy of every review matrix."""
+
+        self._validate_transform(sequence_length)
+        reviews = list(texts)
+        features = np.zeros((len(reviews), sequence_length, self.dimension), dtype=np.float32)
+        for index, text in enumerate(reviews):
+            self._fill_matrix(text, features[index])
+        return features
 
     def save(self, destination: Path) -> None:
         destination.parent.mkdir(parents=True, exist_ok=True)
