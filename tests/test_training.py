@@ -1,3 +1,4 @@
+from itertools import combinations
 from pathlib import Path
 
 import numpy as np
@@ -102,3 +103,57 @@ def test_failed_training_preserves_existing_artifacts(
         )
     paths = (vectorizer_path, model_path, metadata_path)
     assert all(path.read_bytes() == b"previous" for path in paths)
+
+
+@pytest.mark.parametrize(
+    "left,right", list(combinations(("dataset", "vectorizer", "model", "metadata"), 2))
+)
+def test_final_training_rejects_overlapping_paths_before_loading(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, left: str, right: str
+) -> None:
+    paths = {
+        "dataset": tmp_path / "dataset.joblib",
+        "vectorizer": tmp_path / "vectorizer.joblib",
+        "model": tmp_path / "model.keras",
+        "metadata": tmp_path / "model.metadata.json",
+    }
+    if left == "model" and right == "metadata":
+        paths[left].symlink_to(paths[right])
+    elif right == "metadata":
+        paths[left] = paths[right]
+    else:
+        paths[right] = paths[left]
+
+    def unexpected_load(path):
+        pytest.fail("overlapping paths must be rejected before loading the dataset")
+
+    monkeypatch.setattr(training, "load_dataset", unexpected_load)
+    with pytest.raises(ValueError, match="different files"):
+        training.train_final_model(paths["dataset"], paths["vectorizer"], paths["model"])
+
+
+@pytest.mark.parametrize("left,right", list(combinations(("dataset", "vectorizer", "corpus"), 2)))
+def test_embedding_training_rejects_overlapping_destinations(
+    tmp_path: Path, left: str, right: str
+) -> None:
+    paths = {name: tmp_path / name for name in ("dataset", "vectorizer", "corpus")}
+    paths[right] = paths[left]
+    with pytest.raises(ValueError, match="different files"):
+        training.train_embeddings(
+            paths["dataset"], paths["vectorizer"], corpus_path=paths["corpus"]
+        )
+
+
+@pytest.mark.parametrize("link_type", ["symlink", "hardlink"])
+def test_embedding_training_rejects_aliases_of_dataset(tmp_path: Path, link_type: str) -> None:
+    dataset = tmp_path / "dataset.joblib"
+    dataset.write_bytes(b"original dataset")
+    alias = tmp_path / "vectorizer.joblib"
+    if link_type == "symlink":
+        alias.symlink_to(dataset)
+    else:
+        alias.hardlink_to(dataset)
+
+    with pytest.raises(ValueError, match="different files"):
+        training.train_embeddings(dataset, alias)
+    assert dataset.read_bytes() == b"original dataset"

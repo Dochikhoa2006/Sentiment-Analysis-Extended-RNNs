@@ -6,6 +6,7 @@ import json
 import os
 from contextlib import ExitStack
 from datetime import UTC, datetime
+from itertools import combinations
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any
@@ -20,6 +21,16 @@ from sentiment_analyzer.modeling import build_model
 from sentiment_analyzer.serialization import artifact_sha256, load_vectorizer
 
 
+def _validate_distinct_paths(**paths: Path) -> None:
+    """Reject artifact destinations that could overwrite an input or another output."""
+
+    for (left_name, left), (right_name, right) in combinations(paths.items(), 2):
+        if left.resolve() == right.resolve() or (
+            left.exists() and right.exists() and left.samefile(right)
+        ):
+            raise ValueError(f"{left_name} and {right_name} must refer to different files")
+
+
 def train_embeddings(
     dataset_path: Path,
     destination: Path,
@@ -30,6 +41,10 @@ def train_embeddings(
     seed: int = 100,
     epochs: int = 5,
 ) -> EmbeddingVectorizer:
+    paths = {"dataset": dataset_path, "vectorizer": destination}
+    if corpus_path is not None:
+        paths["corpus"] = corpus_path
+    _validate_distinct_paths(**paths)
     dataset = load_dataset(dataset_path)
     texts = dataset["review"].astype(str).tolist()
     vectorizer = EmbeddingVectorizer(
@@ -72,6 +87,13 @@ def train_final_model(
         raise ValueError("validation_fraction must be between 0 and 1")
     if batch_size < 1 or epochs < 1:
         raise ValueError("batch_size and epochs must be positive")
+    metadata_path = destination.with_suffix(".metadata.json")
+    _validate_distinct_paths(
+        dataset=dataset_path,
+        vectorizer=vectorizer_path,
+        model=destination,
+        metadata=metadata_path,
+    )
     dataset = load_dataset(dataset_path)
     texts = dataset["review"].astype(str).to_numpy()
     labels = dataset["star"].astype(np.int64).to_numpy()
@@ -150,7 +172,6 @@ def train_final_model(
                 key: [float(value) for value in values] for key, values in history.history.items()
             },
         }
-        metadata_path = destination.with_suffix(".metadata.json")
         staged_metadata = model_dir / metadata_path.name
         staged_metadata.write_text(json.dumps(metadata, indent=2), encoding="utf-8")
 
