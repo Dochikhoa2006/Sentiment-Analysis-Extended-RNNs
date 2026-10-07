@@ -1,21 +1,34 @@
-.PHONY: install install-dev lint format test download prepare embeddings train evaluate predict docker
+PYTHON ?= $(if $(wildcard .venv/bin/python),.venv/bin/python,python)
+
+.PHONY: install install-dev install-hooks check lint format test download prepare embeddings train evaluate predict docker
 
 install:
-	python -m pip install -e ".[all]"
+	"$(PYTHON)" -m pip install -e ".[all]"
 
 install-dev:
-	python -m pip install -e ".[all,dev]"
+	"$(PYTHON)" -m pip install -e ".[all,dev]"
+
+install-hooks:
+	@current=$$(git config --get core.hooksPath || true); \
+	if [ -n "$$current" ] && [ "$$current" != ".githooks" ]; then \
+		printf '%s\n' "Existing hooksPath: $$current. Add 'make lint' to that hook instead."; \
+		exit 1; \
+	fi
+	git config --local core.hooksPath .githooks
+
+check: lint test
 
 lint:
-	ruff check src tests
-	ruff format --check src tests
+	"$(PYTHON)" -m ruff check src tests
+	"$(PYTHON)" -m ruff format --check src tests
 
 format:
-	ruff format src tests
-	ruff check --fix src tests
+	"$(PYTHON)" -m ruff check --fix src tests
+	"$(PYTHON)" -m ruff format src tests
+	$(MAKE) lint
 
 test:
-	pytest --cov=sentiment_analyzer --cov-report=term-missing
+	"$(PYTHON)" -m pytest --cov=sentiment_analyzer --cov-report=term-missing
 
 download:
 	sentiment-analyzer download

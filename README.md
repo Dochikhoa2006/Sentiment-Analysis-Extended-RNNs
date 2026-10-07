@@ -244,11 +244,13 @@ docker run --rm -it \
 
 ```bash
 make install-dev
-make lint
-make test
+make install-hooks
+make check
 ```
 
-Continuous integration runs linting and unit tests on Python 3.11 and 3.12. Generated datasets,
+The commit hook checks staged source files with the same pinned Ruff version as CI. Use
+`make format` to fix formatting and stage the changes before committing. Continuous integration
+checks lint and formatting before running unit tests on Python 3.11 and 3.12. Generated datasets,
 models, and experiment outputs remain outside Git; only code, documentation, and curated figures
 are versioned.
 

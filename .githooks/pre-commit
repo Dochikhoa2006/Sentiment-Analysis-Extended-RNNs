@@ -1,0 +1,15 @@
+#!/bin/sh
+# Check the staged snapshot so unstaged fixes cannot hide a broken commit.
+set -eu
+root=$(git rev-parse --show-toplevel)
+cd "$root"
+if [ -x "$root/.venv/bin/python" ]; then
+    python="$root/.venv/bin/python"
+else
+    python=$(command -v python)
+fi
+snapshot=$(mktemp -d)
+trap 'rm -rf "$snapshot"' EXIT
+trap 'exit 1' HUP INT TERM
+git checkout-index --all --prefix="$snapshot/"
+make -C "$snapshot" lint PYTHON="$python"
