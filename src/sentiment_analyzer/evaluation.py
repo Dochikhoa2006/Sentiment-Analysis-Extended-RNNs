@@ -55,6 +55,16 @@ def cross_validate(
     dataset = load_dataset(dataset_path)
     texts = dataset["review"].astype(str).to_numpy()
     labels = dataset["star"].astype(np.int64).to_numpy()
+    class_labels = np.arange(base_config.number_of_classes)
+    class_counts = np.bincount(labels, minlength=base_config.number_of_classes)
+    if len(class_counts) != base_config.number_of_classes:
+        raise ValueError("dataset labels exceed the configured number of classes")
+    if np.any(class_counts < folds):
+        counts = {int(label + 1): int(count) for label, count in enumerate(class_counts)}
+        raise ValueError(
+            f"each rating needs at least {folds} reviews for stratified validation; "
+            f"rating counts: {counts}"
+        )
     splitter = StratifiedKFold(n_splits=folds, shuffle=True, random_state=base_config.seed)
     splits = list(splitter.split(texts, labels))
     fold_metrics: dict[str, list[dict[str, float]]] = {name: [] for name in architectures}
@@ -98,14 +108,22 @@ def cross_validate(
             )
             predictions = np.argmax(model.predict(test_batches, verbose=0), axis=1)
             accuracy = float(accuracy_score(test_labels, predictions))
-            macro_f1 = float(f1_score(test_labels, predictions, average="macro"))
+            macro_f1 = float(
+                f1_score(
+                    test_labels,
+                    predictions,
+                    labels=class_labels,
+                    average="macro",
+                    zero_division=0,
+                )
+            )
             fold_metrics[architecture].append(
                 {"fold": fold_number, "accuracy": accuracy, "macro_f1": macro_f1}
             )
             matrices[architecture] += confusion_matrix(
                 test_labels,
                 predictions,
-                labels=np.arange(architecture_config.number_of_classes),
+                labels=class_labels,
             )
             tf.keras.backend.clear_session()
 
@@ -117,6 +135,9 @@ def cross_validate(
         accuracy_mean, accuracy_margin = confidence_interval(accuracies)
         macro_mean, macro_margin = confidence_interval(macro_scores)
         results[architecture] = {
+            "rating_counts": {
+                str(label + 1): int(count) for label, count in enumerate(class_counts)
+            },
             "folds": metrics,
             "accuracy": {"mean": accuracy_mean, "margin_95": accuracy_margin},
             "macro_f1": {"mean": macro_mean, "margin_95": macro_margin},

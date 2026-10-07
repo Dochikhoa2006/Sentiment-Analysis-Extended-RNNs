@@ -191,7 +191,8 @@ sentiment-analyzer evaluate \
 
 Cross-validation intentionally fits FastText inside every training fold to prevent vocabulary and
 embedding leakage from the held-out fold. This is computationally expensive but methodologically
-clean.
+clean. Each rating needs at least as many reviews as the requested number of folds. The evaluation
+output records rating counts and computes macro-F1 across all five classes.
 
 Final training also fits FastText after its validation split, so validation reviews do not enter
 the embedding vocabulary. To reuse a separately trained vectorizer, pass `--reuse-vectorizer`;

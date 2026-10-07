@@ -65,8 +65,28 @@ def test_cross_validation_reuses_fold_embeddings_across_architectures(
     ]
     assert all(len(results[name]["folds"]) == 2 for name in ("lstm", "gru"))
     assert all(results[name]["accuracy"]["mean"] == 1 for name in ("lstm", "gru"))
+    assert results["gru"]["rating_counts"] == dict.fromkeys("12345", 4)
 
 
 def test_cross_validation_rejects_duplicate_architectures(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="unique"):
         evaluation.cross_validate(tmp_path, tmp_path, architectures=("gru", "gru"))
+
+
+@pytest.mark.parametrize("counts", [(4, 4, 4, 4, 0), (4, 4, 4, 4, 1)])
+def test_cross_validation_rejects_insufficient_class_coverage(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, counts: tuple[int, ...]
+) -> None:
+    labels = np.repeat(np.arange(5), counts)
+    dataset = pd.DataFrame(
+        {"review": [f"review {i}" for i in range(len(labels))], "star": labels}
+    )
+    monkeypatch.setattr(evaluation, "load_dataset", lambda path: dataset)
+    monkeypatch.setitem(
+        sys.modules,
+        "tensorflow",
+        SimpleNamespace(keras=SimpleNamespace(backend=SimpleNamespace(clear_session=lambda: None))),
+    )
+
+    with pytest.raises(ValueError, match="each rating needs at least 2 reviews"):
+        evaluation.cross_validate(tmp_path / "dataset", tmp_path, folds=2)
