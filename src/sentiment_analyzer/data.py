@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import os
+from collections.abc import Callable
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import Any
 
 import joblib
@@ -13,6 +16,14 @@ REQUIRED_RAW_COLUMNS = {"review", "star", "date", "package_name"}
 REQUIRED_MODEL_COLUMNS = {"review", "star"}
 
 
+def _write_atomically(destination: Path, writer: Callable[[Path], object]) -> None:
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    with TemporaryDirectory(dir=destination.parent) as directory:
+        staged = Path(directory) / destination.name
+        writer(staged)
+        os.replace(staged, destination)
+
+
 def download_dataset(destination: Path, dataset_id: str = DATASET_ID) -> Path:
     """Download the public Hugging Face training split as Parquet."""
 
@@ -21,9 +32,8 @@ def download_dataset(destination: Path, dataset_id: str = DATASET_ID) -> Path:
     except ImportError as exc:
         raise RuntimeError("Install the data dependencies with: pip install -e '.[data]'") from exc
 
-    destination.parent.mkdir(parents=True, exist_ok=True)
     dataset = load_dataset(dataset_id, split="train")
-    dataset.to_parquet(str(destination))
+    _write_atomically(destination, lambda staged: dataset.to_parquet(str(staged)))
     return destination
 
 
@@ -59,8 +69,7 @@ def prepare_dataset(source: Path, destination: Path) -> Any:
         spark.stop()
 
     validate_dataset(result)
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    joblib.dump(result, destination)
+    _write_atomically(destination, lambda staged: joblib.dump(result, staged))
     return result
 
 
